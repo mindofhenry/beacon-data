@@ -20,7 +20,7 @@ REWRITE_WEEK = 26              # when Jordan rewrites it (October 2025)
 PIP_START_WEEK = 22            # when Samantha's PIP begins (September 2025)
 NEW_HIRE_WEEK = 23             # when Aisha starts (September 2025)
 
-OLD_VERSION_MULTIPLIER = 0.48  # reply rate ~1.4% for reps still on old step 3
+OLD_VERSION_MULTIPLIER = 0.25  # reply rate ~1.4% for reps still on old step 3
 
 
 # -- Helpers -----------------------------------------------------------------
@@ -91,7 +91,7 @@ def _curve_rewrite_adopter_step3(week_index, rep_id="sdr_3"):
         base = _lerp(week_index, 18, 25, 1.0, 0.50)
         noise = _deterministic_noise(rep_id, week_index, 0.03)
     else:
-        base = 2.1
+        base = 3.0
         noise = _deterministic_noise(rep_id, week_index, 0.10)
     return base + noise
 
