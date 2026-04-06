@@ -19,6 +19,7 @@ from generators.config import GLOBAL_SEED, OUTPUT_DIR
 from generators.org_structure import generate_org_files
 from generators.account_enrichment import generate_enrichment_files
 from generators.sequencer_outreach import generate_outreach_files
+from generators.salesforce import generate_salesforce_files
 
 
 def main():
@@ -50,17 +51,24 @@ def main():
     for filename, count in outreach_counts.items():
         print(f"  {filename}: {count} records")
 
+    # Phase 3: Salesforce data
+    print("\n-- Salesforce Data --")
+    sf_counts = generate_salesforce_files(OUTPUT_DIR)
+    for filename, count in sf_counts.items():
+        print(f"  {filename}: {count} records")
+
     # Summary
     print("\n" + "=" * 60)
-    total_files = len(org_counts) + len(enrich_counts) + len(outreach_counts)
+    total_files = len(org_counts) + len(enrich_counts) + len(outreach_counts) + len(sf_counts)
     total_records = (
         sum(org_counts.values())
         + sum(enrich_counts.values())
         + sum(outreach_counts.values())
+        + sum(sf_counts.values())
     )
     print(f"Total: {total_files} files, {total_records} records")
     print(f"Output directory: {os.path.abspath(OUTPUT_DIR)}")
-    print("Phase 1 + Phase 2B generation complete")
+    print("Phase 1 + Phase 2B + Phase 3 generation complete")
     print("=" * 60)
 
 

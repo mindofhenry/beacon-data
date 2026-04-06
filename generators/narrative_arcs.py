@@ -233,3 +233,66 @@ if __name__ == "__main__":
     print("Multiplier 1.0 = team average. 0.0 = not hired / no activity.")
     print(f"Rewrite happens at week {REWRITE_WEEK}. PIP starts week {PIP_START_WEEK}.")
     print(f"New hire (sdr_6) starts week {NEW_HIRE_WEEK}.")
+
+
+# ── AE Deal Arc Constants (Phase 3) ─────────────────────────────────────────
+
+# Arc 8: SDR-to-AE Handoff timing
+HANDOFF_OPP_DELAY_DAYS = (1, 3)  # AE creates opp 1-3 biz days after meeting booked
+
+# Arc 9: Deal Stalls and Dies — Nate Johansson (ae_5)
+ARC_9_DEAL = {
+    "ae_id": "ae_5",
+    "account_domain": None,        # assigned in salesforce.py from MM accounts
+    "amount": 180_000,
+    "segment": "MM",
+    "created_month": "2025-07",
+    "stages": [
+        ("Prospecting", "2025-07-10"),
+        ("Qualification", "2025-08-05"),
+        ("Needs Analysis", "2025-09-12"),
+        ("Proposal/Price Quote", "2025-10-08"),
+        ("Negotiation", "2025-11-03"),
+        ("Closed Lost", "2026-01-15"),
+    ],
+    "single_threaded": True,
+    "activity_gap_start": "2025-11-10",
+    "activity_gap_end": "2026-01-10",
+}
+
+# Arc 10: Multi-Threaded Deals Close
+ARC_10_DEALS = {
+    "ae_1": {  # David Kowalski — SMB multi-threader
+        "contact_count": 4,
+        "amount_range": (40_000, 75_000),
+    },
+    "ae_9": {  # Daniel Osei — STRAT multi-threaded close
+        "contact_count": 5,
+        "amount": 350_000,
+        "contact_roles": ["CISO", "VP Eng", "CFO", "IT Director", "CTO"],
+    },
+}
+
+# Arc 11: Competitive Displacement — Keiko Tanaka (ae_6)
+ARC_11_COMPETITIVE = {
+    "ae_id": "ae_6",
+    "competitor_name": "ShieldStack",
+    "deal_won_amount": 95_000,
+    "deal_lost_amount": 110_000,
+}
+
+# Arc 12: Forecast Sandbagging — Elena Vasquez (ae_2)
+ARC_12_SANDBAGGING = {
+    "ae_id": "ae_2",
+    "slippage_days_range": (14, 21),
+    "target_accuracy": 0.62,
+}
+
+# Arc 17: Cross-Segment ENT Stall — ae_7 and ae_8
+ARC_17_ENT_STALL = {
+    "affected_aes": ["ae_7", "ae_8"],
+    "stall_stage": "Negotiation",
+    "stall_start_month": "2025-09",
+    "normal_neg_to_close_rate": 0.38,
+    "stalled_neg_to_close_rate": 0.14,
+}

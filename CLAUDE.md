@@ -39,8 +39,7 @@ beacon-data/
 │   ├── account_enrichment.py  # funding, ICP, territory, tech stack
 │   ├── org_structure.py       # reps, pairings, managers, rep_events
 │   ├── narrative_arcs.py      # arc-specific modifiers (rep curves, etc.)
-│   ├── sequencer_outreach.py  # longitudinal Outreach data
-│   ├── sequencer_salesloft.py # longitudinal Salesloft data
+│   ├── sequencer_outreach.py  # longitudinal Outreach data (Outreach only — no Salesloft)
 │   ├── salesforce.py          # expanded SF data with realistic timelines
 │   ├── signals.py             # signal_events, score_history, tribal_patterns
 │   ├── alerts.py              # alert_log generation
@@ -138,9 +137,9 @@ not allowed.
 
 Work phases in order. Each phase must be fully validated before starting the next.
 
-1. **Phase 1** — Repo scaffold + org structure + foundation
-2. **Phase 2** — Longitudinal sequencer data (Outreach + Salesloft)
-3. **Phase 3** — Expanded Salesforce data
+1. **Phase 1** — Repo scaffold + org structure + foundation ✅
+2. **Phase 2** — Longitudinal sequencer data (Outreach + Salesloft) ✅
+3. **Phase 3** — Expanded Salesforce data ✅
 4. **Phase 4** — Signal layer (signal_events, score_history, tribal_patterns)
 5. **Phase 5** — Alerts, validation, and wiring to beacon-loop
 
@@ -156,6 +155,24 @@ Every phase must print summary stats when generators run. At minimum:
 - Key rate checks (open rate ~27%, reply rate ~2.9% Outreach / ~4% Salesloft)
 - Per-rep performance breakdowns (to verify arc curves)
 - Per-arc verification (rewrite split visible? PIP inflection present?)
+
+### Phase 3 Salesforce Validation Targets
+- **Record counts:** accounts (25), contacts (100), opportunities (150-200),
+  OCRs (300-500), tasks (500-1100)
+- **Stage distribution:** ~20% Closed Won, ~10% Closed Lost, ~70% open
+- **Arc 8:** 12-24 handoff-attributed opps, LeadSource = sequence name
+- **Arc 9:** Nate's $180K deal, 1 OCR, 42+ day task gap, Closed Lost
+- **Arc 10:** David has 4-OCR deals, Daniel has 5-OCR $350K deal
+- **Arc 11:** Keiko has 2 competitive deals (1W, 1L) with ShieldStack mentions
+- **Arc 12:** Elena's forecast accuracy ~62%
+- **Arc 17:** ENT Negotiation dwell >> SMB Negotiation dwell
+
+### Phase 3 Output Files
+- `sf_accounts.csv` — 25 accounts from contact pool with enrichment data
+- `sf_contacts.csv` — 100 contacts from contact pool
+- `sf_opportunities.csv` — 157 opps with OwnerId (new vs beacon-loop)
+- `sf_opportunity_contact_roles.csv` — 438 OCRs
+- `sf_tasks.csv` — 1062 tasks with Description and OwnerId (new vs beacon-loop)
 
 ## Org Structure Quick Reference
 
