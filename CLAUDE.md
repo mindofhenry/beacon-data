@@ -159,7 +159,7 @@ Every phase must print summary stats when generators run. At minimum:
 
 ## Org Structure Quick Reference
 
-**19 reps + 3 managers = 22 people total**
+**16 ICs (6 SDRs + 10 AEs) + 3 managers = 19 people total**
 
 | Team | Manager | Reps |
 |------|---------|------|
