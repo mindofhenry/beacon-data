@@ -1,13 +1,20 @@
 """
 generators/account_enrichment.py
-Enriches the 25 companies from contact_pool.py with funding, ICP fit,
-territory, employee counts, growth rates, and tech stack tags.
+Enriches all 500 accounts (25 Tier 1 + 75 Tier 2 + 400 Tier 3) with
+funding, ICP fit, territory, employee counts, growth rates, and tech stack.
+
+Tier 1: Hand-curated enrichment data (unchanged from Phase 3).
+Tier 2: Generated enrichment consistent with size_band and industry.
+Tier 3: Minimal enrichment (territory + icp_fit + basic tech stack).
 """
 
 import json
 import os
+import random
 
+from generators.config import GLOBAL_SEED
 from generators.contact_pool import _COMPANIES
+from generators.account_universe import get_tier2_accounts, get_tier3_accounts
 
 # ── Tech stack tag pool ─────────────────────────────────────────────────────
 
@@ -259,13 +266,142 @@ _ENRICHMENT = [
 ]
 
 
-def _build_enriched_records():
-    """Merge company base data with enrichment fields."""
+# ── Territory derivation ───────────────────────────────────────────────────────
+
+_SIZE_BAND_TO_EMPLOYEE_RANGE = {
+    "51-200": (51, 200),
+    "201-500": (201, 500),
+    "501-1000": (501, 1000),
+    "1001-5000": (1001, 5000),
+    "5000+": (5001, 15000),
+}
+
+def _territory_from_employees(n):
+    """Derive territory from employee count."""
+    if n < 200:
+        return "SMB"
+    elif n <= 1000:
+        return "MM"
+    elif n <= 5000:
+        return "ENT"
+    return "STRAT"
+
+
+# ── Funding stage pools by size ──────────────────────────────────────────────
+
+_FUNDING_BY_SIZE = {
+    "51-200": ["Seed", "Series A", "Series A", "Series B"],
+    "201-500": ["Series A", "Series B", "Series B", "Series C"],
+    "501-1000": ["Series B", "Series C", "Series C", "Series D"],
+    "1001-5000": ["Series C", "Series D", "Series D", "Public"],
+    "5000+": ["Series D", "Public", "Public", "Public"],
+}
+
+# ── ICP fit weights by size ──────────────────────────────────────────────────
+
+_ICP_BY_SIZE = {
+    "51-200": ["Weak", "Weak", "Moderate"],
+    "201-500": ["Weak", "Moderate", "Moderate", "Strong"],
+    "501-1000": ["Moderate", "Moderate", "Strong"],
+    "1001-5000": ["Moderate", "Strong", "Strong"],
+    "5000+": ["Moderate", "Strong"],
+}
+
+# ── Tech stack pools by industry ─────────────────────────────────────────────
+
+_STACK_BY_INDUSTRY = {
+    "cybersecurity": [
+        ["aws", "crowdstrike", "splunk", "okta"],
+        ["aws", "zscaler", "datadog", "github"],
+        ["azure", "splunk", "crowdstrike", "jira"],
+    ],
+    "SaaS": [
+        ["gcp", "datadog", "github", "slack"],
+        ["aws", "github", "hubspot", "jira"],
+        ["gcp", "github", "slack", "datadog"],
+    ],
+    "financial services": [
+        ["azure", "salesforce", "snowflake", "okta"],
+        ["azure", "salesforce", "splunk", "okta"],
+        ["aws", "salesforce", "okta", "jira"],
+    ],
+    "healthcare": [
+        ["aws", "okta", "pagerduty", "jira"],
+        ["aws", "slack", "jira", "hubspot"],
+        ["azure", "okta", "jira", "pagerduty"],
+    ],
+    "manufacturing": [
+        ["azure", "salesforce", "jira", "okta"],
+        ["azure", "jira", "pagerduty", "slack"],
+        ["aws", "salesforce", "jira", "splunk"],
+    ],
+}
+
+
+def _generate_tier2_enrichment(companies, seed):
+    """Generate enrichment data for Tier 2 accounts."""
+    rng = random.Random(seed)
     records = []
+    for co in companies:
+        band = co["company_size_band"]
+        industry = co["industry"]
+        emp_lo, emp_hi = _SIZE_BAND_TO_EMPLOYEE_RANGE[band]
+        emp = rng.randint(emp_lo, emp_hi)
+        territory = _territory_from_employees(emp)
+
+        records.append({
+            "funding_stage": rng.choice(_FUNDING_BY_SIZE[band]),
+            "employee_count_current": emp,
+            "employee_growth_6mo": round(rng.uniform(-0.02, 0.25), 2),
+            "tech_stack_tags": rng.choice(_STACK_BY_INDUSTRY[industry]),
+            "icp_fit_score": rng.choice(_ICP_BY_SIZE[band]),
+            "territory": territory,
+        })
+    return records
+
+
+def _generate_tier3_enrichment(companies, seed):
+    """Generate minimal enrichment data for Tier 3 accounts."""
+    rng = random.Random(seed)
+    records = []
+    for co in companies:
+        band = co["company_size_band"]
+        industry = co["industry"]
+        emp_lo, emp_hi = _SIZE_BAND_TO_EMPLOYEE_RANGE[band]
+        emp = rng.randint(emp_lo, emp_hi)
+        territory = _territory_from_employees(emp)
+
+        # Tier 3: mostly Weak/Moderate ICP, minimal stack
+        icp = rng.choice(["Weak", "Weak", "Moderate"])
+        stack = rng.choice(_STACK_BY_INDUSTRY[industry])[:2]  # only 2 tags
+
+        records.append({
+            "funding_stage": rng.choice(_FUNDING_BY_SIZE[band]),
+            "employee_count_current": emp,
+            "employee_growth_6mo": round(rng.uniform(-0.03, 0.15), 2),
+            "tech_stack_tags": stack,
+            "icp_fit_score": icp,
+            "territory": territory,
+        })
+    return records
+
+
+# ── Tier 2/3 enrichment data (generated at import time, deterministic) ───────
+
+_TIER2_ENRICHMENT = _generate_tier2_enrichment(get_tier2_accounts(), GLOBAL_SEED + 500)
+_TIER3_ENRICHMENT = _generate_tier3_enrichment(get_tier3_accounts(), GLOBAL_SEED + 600)
+
+
+def _build_enriched_records():
+    """Merge company base data with enrichment fields for all 500 accounts."""
+    records = []
+
+    # Tier 1: 25 accounts from contact_pool
     for idx, company in enumerate(_COMPANIES):
         enrichment = _ENRICHMENT[idx]
         records.append({
             "company_index": idx,
+            "tier": 1,
             "company_name": company["name"],
             "domain": company["domain"],
             "industry": company["industry"],
@@ -277,6 +413,45 @@ def _build_enriched_records():
             "icp_fit_score": enrichment["icp_fit_score"],
             "territory": enrichment["territory"],
         })
+
+    # Tier 2: 75 accounts
+    t2_accounts = get_tier2_accounts()
+    for idx, company in enumerate(t2_accounts):
+        enrichment = _TIER2_ENRICHMENT[idx]
+        records.append({
+            "company_index": 25 + idx,
+            "tier": 2,
+            "company_name": company["name"],
+            "domain": company["domain"],
+            "industry": company["industry"],
+            "company_size_band": company["company_size_band"],
+            "funding_stage": enrichment["funding_stage"],
+            "employee_count_current": enrichment["employee_count_current"],
+            "employee_growth_6mo": enrichment["employee_growth_6mo"],
+            "tech_stack_tags": enrichment["tech_stack_tags"],
+            "icp_fit_score": enrichment["icp_fit_score"],
+            "territory": enrichment["territory"],
+        })
+
+    # Tier 3: 400 accounts
+    t3_accounts = get_tier3_accounts()
+    for idx, company in enumerate(t3_accounts):
+        enrichment = _TIER3_ENRICHMENT[idx]
+        records.append({
+            "company_index": 100 + idx,
+            "tier": 3,
+            "company_name": company["name"],
+            "domain": company["domain"],
+            "industry": company["industry"],
+            "company_size_band": company["company_size_band"],
+            "funding_stage": enrichment["funding_stage"],
+            "employee_count_current": enrichment["employee_count_current"],
+            "employee_growth_6mo": enrichment["employee_growth_6mo"],
+            "tech_stack_tags": enrichment["tech_stack_tags"],
+            "icp_fit_score": enrichment["icp_fit_score"],
+            "territory": enrichment["territory"],
+        })
+
     return records
 
 

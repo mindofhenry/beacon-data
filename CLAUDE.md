@@ -35,12 +35,13 @@ beacon-data/
 ├── generators/
 │   ├── __init__.py
 │   ├── config.py              # time range, constants, random seeds
-│   ├── contact_pool.py        # copied from beacon-loop — source of truth
-│   ├── account_enrichment.py  # funding, ICP, territory, tech stack
-│   ├── org_structure.py       # reps, pairings, managers, rep_events
+│   ├── contact_pool.py        # copied from beacon-loop — source of truth (25 Tier 1 accounts)
+│   ├── account_universe.py    # Tier 2 (75) + Tier 3 (400) accounts and Tier 2 contacts
+│   ├── account_enrichment.py  # funding, ICP, territory, tech stack (all 500 accounts)
+│   ├── org_structure.py       # reps, pairings, managers, rep_events (DOOM Inc, @doom.com)
 │   ├── narrative_arcs.py      # arc-specific modifiers (rep curves, etc.)
 │   ├── sequencer_outreach.py  # longitudinal Outreach data (Outreach only — no Salesloft)
-│   ├── salesforce.py          # expanded SF data with realistic timelines
+│   ├── salesforce.py          # expanded SF data with realistic timelines (500 accounts)
 │   ├── signals.py             # signal_events, score_history, tribal_patterns
 │   ├── alerts.py              # alert_log generation
 │   └── run_all.py             # single entry point — generates everything
@@ -130,8 +131,14 @@ not allowed.
   and `reason_text` at generation time. Score history is computed by aggregating
   signal events per account per week.
 - **Contact pool is sacred.** `contact_pool.py` was copied from beacon-loop and
-  is the source of truth. Do not modify it. Overflow contacts (for high-volume
-  sequences) are generated separately and never appear in Salesforce.
+  is the source of truth for Tier 1 accounts. Do not modify it. Overflow contacts
+  (for high-volume sequences) are generated separately and never appear in Salesforce.
+- **Account universe has 3 tiers.** Tier 1 (25 accounts, contact_pool.py) has full
+  attribution chains. Tier 2 (75 accounts, account_universe.py) has inbound opps
+  and 1-3 contacts each. Tier 3 (400 accounts, account_universe.py) has no contacts
+  or opps — they exist for signal data in Phase 4.
+- **Company is DOOM Inc.** All reps use `@doom.com` email domain. Company name
+  and domain are defined in `org_structure.py` as `COMPANY_NAME` and `COMPANY_DOMAIN`.
 
 ## Build Phases
 
@@ -156,23 +163,28 @@ Every phase must print summary stats when generators run. At minimum:
 - Per-rep performance breakdowns (to verify arc curves)
 - Per-arc verification (rewrite split visible? PIP inflection present?)
 
-### Phase 3 Salesforce Validation Targets
-- **Record counts:** accounts (25), contacts (100), opportunities (150-200),
-  OCRs (300-500), tasks (500-1100)
-- **Stage distribution:** ~20% Closed Won, ~10% Closed Lost, ~70% open
+### Phase 3 Salesforce Validation Targets (Expanded)
+- **Record counts:** accounts (500), contacts (~247), opportunities (~208),
+  OCRs (~491), tasks (~1213)
+- **Tier structure:** Tier 1 (25, full attribution), Tier 2 (75, inbound opps),
+  Tier 3 (400, bulk imports — no contacts/opps)
+- **Stage distribution:** ~21% Closed Won, ~12% Closed Lost, ~67% open
+- **Tier 2 opps:** 55-65 filler opps, LeadSource = Inbound/Website/Marketing Event/Referral
 - **Arc 8:** 12-24 handoff-attributed opps, LeadSource = sequence name
 - **Arc 9:** Nate's $180K deal, 1 OCR, 42+ day task gap, Closed Lost
 - **Arc 10:** David has 4-OCR deals, Daniel has 5-OCR $350K deal
 - **Arc 11:** Keiko has 2 competitive deals (1W, 1L) with ShieldStack mentions
-- **Arc 12:** Elena's forecast accuracy ~62%
+- **Arc 12:** Elena's forecast accuracy ~62-70%
 - **Arc 17:** ENT Negotiation dwell >> SMB Negotiation dwell
+- **Rep emails:** All 19 reps use @doom.com domain (DOOM Inc)
 
 ### Phase 3 Output Files
-- `sf_accounts.csv` — 25 accounts from contact pool with enrichment data
-- `sf_contacts.csv` — 100 contacts from contact pool
-- `sf_opportunities.csv` — 157 opps with OwnerId (new vs beacon-loop)
-- `sf_opportunity_contact_roles.csv` — 438 OCRs
-- `sf_tasks.csv` — 1062 tasks with Description and OwnerId (new vs beacon-loop)
+- `sf_accounts.csv` — 500 accounts (25 T1 + 75 T2 + 400 T3)
+- `sf_contacts.csv` — ~247 contacts (100 T1 + ~147 T2)
+- `sf_opportunities.csv` — ~208 opps with OwnerId
+- `sf_opportunity_contact_roles.csv` — ~491 OCRs
+- `sf_tasks.csv` — ~1213 tasks with Description and OwnerId
+- `account_enrichment.json` — 500 records with tier field
 
 ## Org Structure Quick Reference
 

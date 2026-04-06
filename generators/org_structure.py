@@ -1,10 +1,16 @@
 """
 generators/org_structure.py
 Defines all 19 reps + 3 managers, SDR-to-AE pairings, and rep lifecycle events.
+Company: DOOM Inc — all reps use @doom.com email domain.
 """
 
 import json
 import os
+
+# ── Company ────────────────────────────────────────────────────────────────
+
+COMPANY_NAME = "DOOM Inc"
+COMPANY_DOMAIN = "doom.com"
 
 # ── Managers ────────────────────────────────────────────────────────────────
 
@@ -12,6 +18,7 @@ MANAGERS = [
     {
         "id": "mgr_1",
         "name": "Christine Park",
+        "email": "christine.park@doom.com",
         "role": "Manager",
         "segment": "All",
         "manager_id": None,
@@ -21,6 +28,7 @@ MANAGERS = [
     {
         "id": "mgr_2",
         "name": "James Holloway",
+        "email": "james.holloway@doom.com",
         "role": "Manager",
         "segment": "SMB",
         "manager_id": None,
@@ -30,6 +38,7 @@ MANAGERS = [
     {
         "id": "mgr_3",
         "name": "Amara Okafor",
+        "email": "amara.okafor@doom.com",
         "role": "Manager",
         "segment": "ENT",
         "manager_id": None,
@@ -44,6 +53,7 @@ SDRS = [
     {
         "id": "sdr_1",
         "name": "Marcus Webb",
+        "email": "marcus.webb@doom.com",
         "role": "SDR",
         "segment": "All",
         "manager_id": "mgr_1",
@@ -53,6 +63,7 @@ SDRS = [
     {
         "id": "sdr_2",
         "name": "Priya Nair",
+        "email": "priya.nair@doom.com",
         "role": "SDR",
         "segment": "All",
         "manager_id": "mgr_1",
@@ -62,6 +73,7 @@ SDRS = [
     {
         "id": "sdr_3",
         "name": "Jordan Chase",
+        "email": "jordan.chase@doom.com",
         "role": "SDR",
         "segment": "All",
         "manager_id": "mgr_1",
@@ -71,6 +83,7 @@ SDRS = [
     {
         "id": "sdr_4",
         "name": "Samantha Reyes",
+        "email": "samantha.reyes@doom.com",
         "role": "SDR",
         "segment": "All",
         "manager_id": "mgr_1",
@@ -80,6 +93,7 @@ SDRS = [
     {
         "id": "sdr_5",
         "name": "Tyler Brooks",
+        "email": "tyler.brooks@doom.com",
         "role": "SDR",
         "segment": "All",
         "manager_id": "mgr_1",
@@ -89,6 +103,7 @@ SDRS = [
     {
         "id": "sdr_6",
         "name": "Aisha Okonkwo",
+        "email": "aisha.okonkwo@doom.com",
         "role": "SDR",
         "segment": "All",
         "manager_id": "mgr_1",
@@ -103,6 +118,7 @@ AES_SMB_MM = [
     {
         "id": "ae_1",
         "name": "David Kowalski",
+        "email": "david.kowalski@doom.com",
         "role": "AE",
         "segment": "SMB",
         "manager_id": "mgr_2",
@@ -112,6 +128,7 @@ AES_SMB_MM = [
     {
         "id": "ae_2",
         "name": "Elena Vasquez",
+        "email": "elena.vasquez@doom.com",
         "role": "AE",
         "segment": "SMB",
         "manager_id": "mgr_2",
@@ -121,6 +138,7 @@ AES_SMB_MM = [
     {
         "id": "ae_3",
         "name": "Ryan Obi",
+        "email": "ryan.obi@doom.com",
         "role": "AE",
         "segment": "SMB",
         "manager_id": "mgr_2",
@@ -130,6 +148,7 @@ AES_SMB_MM = [
     {
         "id": "ae_4",
         "name": "Hannah Liu",
+        "email": "hannah.liu@doom.com",
         "role": "AE",
         "segment": "SMB",
         "manager_id": "mgr_2",
@@ -139,6 +158,7 @@ AES_SMB_MM = [
     {
         "id": "ae_5",
         "name": "Nate Johansson",
+        "email": "nate.johansson@doom.com",
         "role": "AE",
         "segment": "MM",
         "manager_id": "mgr_2",
@@ -148,6 +168,7 @@ AES_SMB_MM = [
     {
         "id": "ae_6",
         "name": "Keiko Tanaka",
+        "email": "keiko.tanaka@doom.com",
         "role": "AE",
         "segment": "MM",
         "manager_id": "mgr_2",
@@ -162,6 +183,7 @@ AES_ENT_STRAT = [
     {
         "id": "ae_7",
         "name": "Marcus Adeyemi",
+        "email": "marcus.adeyemi@doom.com",
         "role": "AE",
         "segment": "ENT",
         "manager_id": "mgr_3",
@@ -171,6 +193,7 @@ AES_ENT_STRAT = [
     {
         "id": "ae_8",
         "name": "Laura Chen",
+        "email": "laura.chen@doom.com",
         "role": "AE",
         "segment": "ENT",
         "manager_id": "mgr_3",
@@ -180,6 +203,7 @@ AES_ENT_STRAT = [
     {
         "id": "ae_9",
         "name": "Daniel Osei",
+        "email": "daniel.osei@doom.com",
         "role": "AE",
         "segment": "STRAT",
         "manager_id": "mgr_3",
@@ -189,6 +213,7 @@ AES_ENT_STRAT = [
     {
         "id": "ae_10",
         "name": "Sofia Petrov",
+        "email": "sofia.petrov@doom.com",
         "role": "AE",
         "segment": "STRAT",
         "manager_id": "mgr_3",

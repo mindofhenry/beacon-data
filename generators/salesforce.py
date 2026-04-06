@@ -20,7 +20,8 @@ from datetime import date, timedelta
 
 from .config import DATA_START, DATA_END, DEMO_TODAY, GLOBAL_SEED
 from .contact_pool import CONTACT_POOL, _COMPANIES
-from .account_enrichment import _ENRICHMENT
+from .account_enrichment import _ENRICHMENT, _TIER2_ENRICHMENT, _TIER3_ENRICHMENT
+from .account_universe import get_tier2_accounts, get_tier2_contacts, get_tier3_accounts
 from .org_structure import (
     AES_SMB_MM, AES_ENT_STRAT, SDR_AE_PAIRS, SDRS,
 )
@@ -356,7 +357,37 @@ def generate_salesforce_files(output_dir):
         })
         acc_id_map[co["name"]] = acc_id
 
-    # ── Build contacts ────────────────────────────────────────────────────
+    # ── Tier 2 accounts (75) ─────────────────────────────────────────────
+
+    tier2_accounts = get_tier2_accounts()
+    for idx, co in enumerate(tier2_accounts):
+        acc_id = ids.next_acc()
+        enrichment = _TIER2_ENRICHMENT[idx]
+        accounts.append({
+            "Id": acc_id,
+            "Name": co["name"],
+            "Industry": co["industry"],
+            "NumberOfEmployees": enrichment["employee_count_current"],
+            "BillingCity": _rng.choice(US_CITIES),
+        })
+        acc_id_map[co["name"]] = acc_id
+
+    # ── Tier 3 accounts (400) ────────────────────────────────────────────
+
+    tier3_accounts = get_tier3_accounts()
+    for idx, co in enumerate(tier3_accounts):
+        acc_id = ids.next_acc()
+        enrichment = _TIER3_ENRICHMENT[idx]
+        accounts.append({
+            "Id": acc_id,
+            "Name": co["name"],
+            "Industry": co["industry"],
+            "NumberOfEmployees": enrichment["employee_count_current"],
+            "BillingCity": _rng.choice(US_CITIES),
+        })
+        acc_id_map[co["name"]] = acc_id
+
+    # ── Build contacts (Tier 1) ──────────────────────────────────────────
 
     contacts = []
     contact_id_map = {}  # email ->sf_con_id
@@ -372,6 +403,27 @@ def generate_salesforce_files(output_dir):
             "Industry": c["industry"],
         })
         contact_id_map[c["email"]] = con_id
+
+    # ── Tier 2 contacts (~150) ───────────────────────────────────────────
+
+    tier2_contacts = get_tier2_contacts()
+    for i, c in enumerate(tier2_contacts):
+        con_id = f"sf_con_{100 + i + 1:03d}"
+        contacts.append({
+            "Id": con_id,
+            "FirstName": c["first_name"],
+            "LastName": c["last_name"],
+            "Email": c["email"],
+            "Title": c["title"],
+            "AccountId": acc_id_map[c["company"]],
+            "Industry": c["industry"],
+        })
+        contact_id_map[c["email"]] = con_id
+
+    # Build Tier 2 contacts grouped by company for opp generation
+    t2_contacts_by_company = defaultdict(list)
+    for c in tier2_contacts:
+        t2_contacts_by_company[c["company"]].append(c)
 
     # ── Build opportunities, OCRs, and tasks ─────────────────────────────
 
@@ -1222,6 +1274,153 @@ def generate_salesforce_files(output_dir):
             tasks.extend(opp_tasks)
 
     # ══════════════════════════════════════════════════════════════════════
+    # TIER 2 FILLER OPPORTUNITIES (50-70 inbound/self-sourced deals)
+    # ══════════════════════════════════════════════════════════════════════
+
+    TIER2_INBOUND_SOURCES = ["Inbound", "Website", "Marketing Event", "Referral"]
+
+    # Unpaired AEs get heavier weighting for Tier 2 opps
+    unpaired_aes = ["ae_2", "ae_4", "ae_8", "ae_10"]
+    paired_aes = [ae["id"] for ae in ALL_AES if ae["id"] not in unpaired_aes]
+    # Weight: unpaired AEs 3x more likely
+    t2_ae_pool = unpaired_aes * 3 + paired_aes
+
+    # Pick which Tier 2 companies get opps (50-70 of 75)
+    n_tier2_opps = _rng.randint(55, 65)
+    t2_opp_companies = _rng.sample(range(len(tier2_accounts)), min(n_tier2_opps, len(tier2_accounts)))
+
+    t2_opp_count = 0
+    for t2_idx in t2_opp_companies:
+        co = tier2_accounts[t2_idx]
+        enrichment = _TIER2_ENRICHMENT[t2_idx]
+        company_name = co["name"]
+        account_id = acc_id_map[company_name]
+        territory = enrichment["territory"]
+
+        # Pick an AE, preferring ones in matching segment
+        ae_id = _rng.choice(t2_ae_pool)
+        ae = AE_MAP[ae_id]
+
+        # Amount based on territory
+        params = SEGMENT_PARAMS.get(territory, SEGMENT_PARAMS["SMB"])
+        amount = _rng.randrange(params[2], params[3] + 1, 5_000)
+        cycle_days = _rng.randint(params[4], params[5])
+
+        # Created date spread across the 12-month window
+        created_date = DATA_START + timedelta(days=_rng.randint(0, 330))
+
+        use_case = _USE_CASES[t2_opp_count % len(_USE_CASES)]
+        lead_source = _rng.choice(TIER2_INBOUND_SOURCES)
+        opp_id = ids.next_opp()
+
+        # Stage distribution: ~25% Won, ~15% Lost, ~60% open
+        outcome_roll = _rng.random()
+        if outcome_roll < 0.25:
+            close_date = created_date + timedelta(days=cycle_days + _rng.randint(0, 14))
+            if close_date > DEMO_TODAY:
+                close_date = DEMO_TODAY - timedelta(days=_rng.randint(1, 30))
+            final_stage = "Closed Won"
+        elif outcome_roll < 0.40:
+            close_date = created_date + timedelta(days=_rng.randint(cycle_days // 2, cycle_days))
+            if close_date > DEMO_TODAY:
+                close_date = DEMO_TODAY - timedelta(days=_rng.randint(1, 30))
+            final_stage = "Closed Lost"
+        else:
+            # Open — pick a stage
+            elapsed = (DEMO_TODAY - created_date).days
+            stage_fracs = [0.15, 0.20, 0.25, 0.20, 0.20]
+            cum = 0
+            final_stage = "Prospecting"
+            for si, frac in enumerate(stage_fracs):
+                cum += frac * cycle_days
+                if elapsed < cum:
+                    final_stage = STAGES_ORDERED[si]
+                    break
+            else:
+                final_stage = "Negotiation"
+            close_date = created_date + timedelta(days=cycle_days)
+
+        opp_name = f"{company_name} --{use_case}"
+
+        opp = {
+            "Id": opp_id,
+            "Name": opp_name,
+            "AccountId": account_id,
+            "StageName": final_stage,
+            "Amount": amount,
+            "CloseDate": close_date.isoformat(),
+            "LeadSource": lead_source,
+            "OwnerId": ae_id,
+        }
+        opportunities.append(opp)
+
+        # OCRs: 1-2 per Tier 2 opp
+        co_contacts = t2_contacts_by_company.get(company_name, [])
+        n_ocrs = min(_rng.randint(1, 2), len(co_contacts))
+        opp_contacts = co_contacts[:n_ocrs] if co_contacts else []
+        roles_pool = ["Decision Maker", "Economic Buyer", "Influencer", "End User"]
+        for j, contact in enumerate(opp_contacts):
+            con_id = contact_id_map.get(contact["email"])
+            if not con_id:
+                continue
+            role = roles_pool[j % len(roles_pool)]
+            ocrs.append({
+                "Id": ids.next_ocr(),
+                "OpportunityId": opp_id,
+                "ContactId": con_id,
+                "Role": role,
+                "IsPrimary": str(j == 0),
+            })
+
+        # Tasks: 2-4 per Tier 2 opp
+        n_tasks = _rng.randint(2, 4)
+        for ti in range(n_tasks):
+            if not opp_contacts:
+                break
+            tc = opp_contacts[ti % len(opp_contacts)]
+            tc_name = f"{tc['first_name']} {tc['last_name']}"
+            tc_id = contact_id_map.get(tc["email"])
+            if not tc_id:
+                continue
+
+            # Spread tasks across the deal lifecycle
+            task_offset = int((ti + 1) / (n_tasks + 1) * cycle_days)
+            task_date = created_date + timedelta(days=task_offset + _rng.randint(0, 5))
+            if task_date > DEMO_TODAY:
+                task_date = DEMO_TODAY
+
+            if ti == 0:
+                subj = f"Discovery call with {tc_name}"
+                desc = f"Initial discovery with {tc_name} at {company_name}. Discussed security needs."
+                task_type = "Call"
+            elif ti == 1:
+                subj = f"Demo completed --{company_name}"
+                desc = f"Platform demo for {tc_name}. Good engagement on {use_case}."
+                task_type = "Meeting"
+            elif ti == 2:
+                subj = f"Sent pricing deck to {company_name}"
+                desc = f"Proposal sent to {tc_name}. Reviewing with procurement."
+                task_type = "Email"
+            else:
+                subj = f"Follow-up with {tc_name} --{company_name}"
+                desc = f"Check-in with {tc_name}. Still evaluating options."
+                task_type = "Call"
+
+            tasks.append({
+                "Id": ids.next_tsk(),
+                "WhoId": tc_id,
+                "WhatId": opp_id,
+                "Subject": subj,
+                "Status": "Completed",
+                "ActivityDate": task_date.isoformat(),
+                "Type": task_type,
+                "Description": desc,
+                "OwnerId": ae_id,
+            })
+
+        t2_opp_count += 1
+
+    # ══════════════════════════════════════════════════════════════════════
     # WRITE CSV FILES
     # ══════════════════════════════════════════════════════════════════════
 
@@ -1265,9 +1464,9 @@ def generate_salesforce_files(output_dir):
 
     # 1. Record counts
     print(f"\n  Record counts:")
-    print(f"    Accounts:      {len(accounts)}")
-    print(f"    Contacts:      {len(contacts)}")
-    print(f"    Opportunities: {len(opportunities)}")
+    print(f"    Accounts:      {len(accounts)} (25 T1 + {len(tier2_accounts)} T2 + {len(tier3_accounts)} T3)")
+    print(f"    Contacts:      {len(contacts)} (100 T1 + {len(tier2_contacts)} T2)")
+    print(f"    Opportunities: {len(opportunities)} (Tier 1 arcs + baseline + {t2_opp_count} Tier 2 filler)")
     print(f"    OCRs:          {len(ocrs)}")
     print(f"    Tasks:         {len(tasks)}")
 

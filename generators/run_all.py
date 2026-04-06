@@ -68,7 +68,10 @@ def main():
     )
     print(f"Total: {total_files} files, {total_records} records")
     print(f"Output directory: {os.path.abspath(OUTPUT_DIR)}")
-    print("Phase 1 + Phase 2B + Phase 3 generation complete")
+    print(f"Account universe: {sf_counts.get('sf_accounts.csv', '?')} accounts "
+          f"({sf_counts.get('sf_contacts.csv', '?')} contacts, "
+          f"{sf_counts.get('sf_opportunities.csv', '?')} opps)")
+    print("Phase 1 + Phase 2B + Phase 3 (expanded) generation complete")
     print("=" * 60)
 
 
