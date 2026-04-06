@@ -31,9 +31,17 @@ def date_to_week_index(dt):
     return min(max(delta // 7, 0), 51)
 
 
+def _stable_hash(s):
+    """FNV-1a-style hash that is stable across Python runs (unlike hash())."""
+    h = 2166136261
+    for ch in s:
+        h = ((h ^ ord(ch)) * 16777619) & 0xFFFFFFFF
+    return h
+
+
 def _deterministic_noise(rep_id, week_index, amplitude):
     """Return deterministic noise in [-amplitude, +amplitude]."""
-    seed = GLOBAL_SEED + hash(rep_id) + week_index * 997
+    seed = GLOBAL_SEED + _stable_hash(rep_id) + week_index * 997
     rng = random.Random(seed)
     return rng.uniform(-amplitude, amplitude)
 
