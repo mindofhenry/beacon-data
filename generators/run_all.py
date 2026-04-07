@@ -20,6 +20,7 @@ from generators.org_structure import generate_org_files
 from generators.account_enrichment import generate_enrichment_files
 from generators.sequencer_outreach import generate_outreach_files
 from generators.salesforce import generate_salesforce_files
+from generators.signals import generate_signal_files
 
 
 def main():
@@ -57,21 +58,25 @@ def main():
     for filename, count in sf_counts.items():
         print(f"  {filename}: {count} records")
 
+    # Phase 4: Signal layer
+    print("\n-- Signal Layer --")
+    sig_counts = generate_signal_files(OUTPUT_DIR)
+    for filename, count in sig_counts.items():
+        print(f"  {filename}: {count} records")
+
     # Summary
     print("\n" + "=" * 60)
-    total_files = len(org_counts) + len(enrich_counts) + len(outreach_counts) + len(sf_counts)
-    total_records = (
-        sum(org_counts.values())
-        + sum(enrich_counts.values())
-        + sum(outreach_counts.values())
-        + sum(sf_counts.values())
-    )
+    all_counts = [org_counts, enrich_counts, outreach_counts, sf_counts, sig_counts]
+    total_files = sum(len(c) for c in all_counts)
+    total_records = sum(sum(c.values()) for c in all_counts)
     print(f"Total: {total_files} files, {total_records} records")
     print(f"Output directory: {os.path.abspath(OUTPUT_DIR)}")
     print(f"Account universe: {sf_counts.get('sf_accounts.csv', '?')} accounts "
           f"({sf_counts.get('sf_contacts.csv', '?')} contacts, "
           f"{sf_counts.get('sf_opportunities.csv', '?')} opps)")
-    print("Phase 1 + Phase 2B + Phase 3 (expanded) generation complete")
+    print(f"Signal layer: {sig_counts.get('signal_events.json', '?')} events, "
+          f"{sig_counts.get('score_history.json', '?')} scores")
+    print("Phase 1 + Phase 2B + Phase 3 + Phase 4 generation complete")
     print("=" * 60)
 
 

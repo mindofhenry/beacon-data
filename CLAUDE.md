@@ -147,7 +147,7 @@ Work phases in order. Each phase must be fully validated before starting the nex
 1. **Phase 1** — Repo scaffold + org structure + foundation ✅
 2. **Phase 2** — Longitudinal sequencer data (Outreach + Salesloft) ✅
 3. **Phase 3** — Expanded Salesforce data ✅
-4. **Phase 4** — Signal layer (signal_events, score_history, tribal_patterns)
+4. **Phase 4** — Signal layer (signal_events, score_history, tribal_patterns) ✅
 5. **Phase 5** — Alerts, validation, and wiring to beacon-loop
 
 **Phase-gating rule:** Do not start Phase N+1 until Phase N's output files are
@@ -185,6 +185,28 @@ Every phase must print summary stats when generators run. At minimum:
 - `sf_opportunity_contact_roles.csv` — ~491 OCRs
 - `sf_tasks.csv` — ~1213 tasks with Description and OwnerId
 - `account_enrichment.json` — 500 records with tier field
+
+### Phase 4 Signal Layer Validation Targets
+- **Record counts:** signal_events (~5987), score_history (~3017),
+  tribal_patterns (7), account_preferences (25)
+- **Signal distribution:** T1 high density (35-65/account), T2 medium (20-45),
+  T3 low (~38% get 5-20, rest get intent_surge spray only)
+- **Arc 5 (Fortress re-engagement):** Zero signals Jul-Aug, 3 minor Sep signals,
+  Oct cluster (3 pricing_page_visit + executive_change + content_download).
+  Sept 29 score=22, Oct 20 score=87.
+- **Arc 6 (Tribal pattern):** tp_001 = Series B + CISO + pricing_page_visit,
+  sample_size=8 (qualifying closed-won opps across 6 accounts)
+- **Arc 15 (Signal ROI):** job_change ~2.8x, pricing_page_visit ~2.1x,
+  intent_surge ~1.1x. Intent sprayed broadly across ~430 accounts.
+- **Arc 16 (Scoring drift):** 6 score_history records in Nov with rep_feedback
+  on ENT/STRAT accounts (1000+ emp) with no Closed Won opps
+- **Date range:** All signals within April 1, 2025 – March 31, 2026
+
+### Phase 4 Output Files
+- `signal_events.json` — ~5987 pre-scored signal events
+- `score_history.json` — ~3017 weekly score snapshots
+- `tribal_patterns.json` — 7 patterns (tp_001 is Arc 6)
+- `account_preferences.json` — 25 snooze/override records
 
 ## Org Structure Quick Reference
 
