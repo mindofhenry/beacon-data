@@ -21,6 +21,7 @@ from generators.account_enrichment import generate_enrichment_files
 from generators.sequencer_outreach import generate_outreach_files
 from generators.salesforce import generate_salesforce_files
 from generators.signals import generate_signal_files
+from generators.alerts import generate_alert_files
 
 
 def main():
@@ -64,9 +65,15 @@ def main():
     for filename, count in sig_counts.items():
         print(f"  {filename}: {count} records")
 
+    # Phase 5: Alert log
+    print("\n-- Alert Log --")
+    alert_counts = generate_alert_files(OUTPUT_DIR)
+    for filename, count in alert_counts.items():
+        print(f"  {filename}: {count} records")
+
     # Summary
     print("\n" + "=" * 60)
-    all_counts = [org_counts, enrich_counts, outreach_counts, sf_counts, sig_counts]
+    all_counts = [org_counts, enrich_counts, outreach_counts, sf_counts, sig_counts, alert_counts]
     total_files = sum(len(c) for c in all_counts)
     total_records = sum(sum(c.values()) for c in all_counts)
     print(f"Total: {total_files} files, {total_records} records")
@@ -76,7 +83,8 @@ def main():
           f"{sf_counts.get('sf_opportunities.csv', '?')} opps)")
     print(f"Signal layer: {sig_counts.get('signal_events.json', '?')} events, "
           f"{sig_counts.get('score_history.json', '?')} scores")
-    print("Phase 1 + Phase 2B + Phase 3 + Phase 4 generation complete")
+    print(f"Alert log: {alert_counts.get('alert_log.json', '?')} alerts")
+    print("Phase 1-5 generation complete")
     print("=" * 60)
 
 

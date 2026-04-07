@@ -148,7 +148,7 @@ Work phases in order. Each phase must be fully validated before starting the nex
 2. **Phase 2** — Longitudinal sequencer data (Outreach + Salesloft) ✅
 3. **Phase 3** — Expanded Salesforce data ✅
 4. **Phase 4** — Signal layer (signal_events, score_history, tribal_patterns) ✅
-5. **Phase 5** — Alerts, validation, and wiring to beacon-loop
+5. **Phase 5** — Alerts, validation, and wiring to beacon-loop ✅
 
 **Phase-gating rule:** Do not start Phase N+1 until Phase N's output files are
 generated and validated. "Validated" means: files exist, schemas match the spec,
@@ -208,6 +208,17 @@ Every phase must print summary stats when generators run. At minimum:
 - `tribal_patterns.json` — 7 patterns (tp_001 is Arc 6)
 - `account_preferences.json` — 25 snooze/override records
 
+### Phase 5 Alert & Validation Targets
+- **Record counts:** alert_log (~1394)
+- **Alert tiers:** CRITICAL (~456), HIGH (~279), STANDARD (~659)
+- **Response rate:** ~80% responded
+- **Response times:** CRITICAL ~1.9hr, HIGH ~4.0hr, STANDARD ~12hr
+- **Arc 13 (Coverage gap):** 12 unresponded/late alerts in Oct 20-24, spread
+  across sdr_1, sdr_2, sdr_4, sdr_5 (3 each). Surrounding weeks normal.
+
+### Phase 5 Output Files
+- `alert_log.json` — ~1394 alerts with tier, response behavior, Arc 13 gap
+
 ## Org Structure Quick Reference
 
 **16 ICs (6 SDRs + 10 AEs) + 3 managers = 19 people total**
@@ -229,7 +240,7 @@ sdr_5→ae_7, sdr_6→ae_9
 # Generate all synthetic data (from repo root)
 python -m generators.run_all
 
-# Run validation checks
+# Run comprehensive validation (exit code 0 = pass, 1 = fail)
 python -m validation.validate
 
 # Alternative: run directly
