@@ -430,6 +430,7 @@ def generate_salesforce_files(output_dir):
     opportunities = []
     ocrs = []
     tasks = []
+    stage_history_rows = []   # (OpportunityId, StageName, EntryDate) for new CSV
     use_case_idx = 0
 
     def _next_use_case():
@@ -699,6 +700,10 @@ def generate_salesforce_files(output_dir):
             ent_stall=ent_stall,
         )
 
+        # Collect stage history for export
+        for stage_name, entry_date in stage_dates:
+            stage_history_rows.append((opp_id, stage_name, entry_date))
+
         # Tasks
         opp_tasks = _generate_deal_tasks(
             opp_id, ae_id, contact_list, company_name, use_case, amount,
@@ -827,6 +832,10 @@ def generate_salesforce_files(output_dir):
         "OwnerId": "ae_5",
     }
     opportunities.append(opp_arc9)
+
+    # Collect Arc 9 stage history (bypasses _create_opp)
+    for stage_name, entry_date in arc9_stages:
+        stage_history_rows.append((arc9_opp_id, stage_name, entry_date))
 
     # Single OCR
     if arc9_contacts:
@@ -1354,6 +1363,14 @@ def generate_salesforce_files(output_dir):
         }
         opportunities.append(opp)
 
+        # Collect Tier 2 stage history (bypasses _create_opp)
+        t2_close_for_stages = close_date if final_stage in ("Closed Won", "Closed Lost") else None
+        t2_stage_dates = _compute_stage_dates(
+            created_date, cycle_days, final_stage, t2_close_for_stages,
+        )
+        for stage_name, entry_date in t2_stage_dates:
+            stage_history_rows.append((opp_id, stage_name, entry_date))
+
         # OCRs: 1-2 per Tier 2 opp
         co_contacts = t2_contacts_by_company.get(company_name, [])
         n_ocrs = min(_rng.randint(1, 2), len(co_contacts))
@@ -1454,6 +1471,39 @@ def generate_salesforce_files(output_dir):
     counts["sf_tasks.csv"] = _write_csv(
         "sf_tasks.csv", tasks,
         ["Id", "WhoId", "WhatId", "Subject", "Status", "ActivityDate", "Type", "Description", "OwnerId"],
+    )
+
+    # ── Stage History CSV ────────────────────────────────────────────────
+
+    stage_history_dicts = [
+        {"OpportunityId": oid, "StageName": sname, "EntryDate": edate}
+        for oid, sname, edate in stage_history_rows
+    ]
+    counts["sf_stage_history.csv"] = _write_csv(
+        "sf_stage_history.csv", stage_history_dicts,
+        ["OpportunityId", "StageName", "EntryDate"],
+    )
+
+    # ── Close Date History CSV ───────────────────────────────────────────
+
+    close_date_history = []
+    for opp in opportunities:
+        orig = opp.get("_original_close_date")
+        if orig:
+            orig_date = _date_from_str(orig)
+            new_date = _date_from_str(opp["CloseDate"])
+            slip_days = (new_date - orig_date).days
+            detected_at = orig_date + timedelta(days=slip_days // 2)
+            close_date_history.append({
+                "OpportunityId": opp["Id"],
+                "PreviousCloseDate": orig,
+                "NewCloseDate": opp["CloseDate"],
+                "SlipDays": slip_days,
+                "DetectedAt": detected_at.isoformat(),
+            })
+    counts["sf_close_date_history.csv"] = _write_csv(
+        "sf_close_date_history.csv", close_date_history,
+        ["OpportunityId", "PreviousCloseDate", "NewCloseDate", "SlipDays", "DetectedAt"],
     )
 
     # ══════════════════════════════════════════════════════════════════════
@@ -1611,5 +1661,26 @@ def generate_salesforce_files(output_dir):
                 print(f"    {sdr} sequenced {con['Email']}")
                 print(f"      ->replied {reply_date} ->opp created {opp['CloseDate']}")
                 print(f"      ->AE {opp['OwnerId']} owns ->{opp['StageName']}")
+
+    # 11. Stage history + close date history validation
+    print(f"\n  Stage History & Close Date History:")
+    print(f"    sf_stage_history.csv:     {len(stage_history_dicts)} rows")
+    print(f"    sf_close_date_history.csv: {len(close_date_history)} rows")
+
+    # Sample: show stage history for first opp
+    if stage_history_dicts:
+        sample_opp = stage_history_dicts[0]["OpportunityId"]
+        sample_stages = [r for r in stage_history_dicts if r["OpportunityId"] == sample_opp]
+        print(f"    Sample stage history ({sample_opp}):")
+        for r in sample_stages:
+            print(f"      {r['StageName']:<25} {r['EntryDate']}")
+
+    # Close date slips summary
+    if close_date_history:
+        slip_days_list = [r["SlipDays"] for r in close_date_history]
+        print(f"    Close date slips: {len(close_date_history)} opps")
+        print(f"      Avg slip: {sum(slip_days_list) / len(slip_days_list):.1f} days")
+        for r in close_date_history[:3]:
+            print(f"      {r['OpportunityId']}: {r['PreviousCloseDate']} -> {r['NewCloseDate']} ({r['SlipDays']:+d} days)")
 
     return counts

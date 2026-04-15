@@ -83,6 +83,8 @@ def check_record_counts():
         ("tribal_patterns.json", 7, 7),
         ("account_preferences.json", 15, 25),
         ("alert_log.json", 1000, 2000),
+        ("sf_stage_history.csv", 500, 2000),
+        ("sf_close_date_history.csv", 3, 20),
     ]
 
     for filename, lo, hi in checks:
@@ -145,6 +147,9 @@ def check_schemas():
                                              "Role", "IsPrimary"],
         "sf_tasks.csv": ["Id", "WhoId", "WhatId", "Subject", "Status",
                          "ActivityDate", "Type", "Description", "OwnerId"],
+        "sf_stage_history.csv": ["OpportunityId", "StageName", "EntryDate"],
+        "sf_close_date_history.csv": ["OpportunityId", "PreviousCloseDate",
+                                      "NewCloseDate", "SlipDays", "DetectedAt"],
     }
 
     for filename, required_headers in csv_schemas.items():
