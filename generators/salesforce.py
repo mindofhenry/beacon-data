@@ -634,6 +634,28 @@ def generate_salesforce_files(output_dir):
         if final_stage in ("Closed Won", "Closed Lost") and close_date:
             result.append((final_stage, close_date.isoformat()))
 
+        # Fix: if an open deal's final stage entry exceeds DEMO_TODAY,
+        # scale all stage offsets proportionally to fit within elapsed time.
+        if final_stage in OPEN_STAGES and len(result) > 1:
+            last_dt = _date_from_str(result[-1][1])
+            if last_dt > DEMO_TODAY:
+                elapsed = (DEMO_TODAY - created_date).days
+                if elapsed < len(result):
+                    elapsed = len(result)
+                natural_total = (last_dt - created_date).days
+                if natural_total < 1:
+                    natural_total = 1
+                scale = (elapsed * 0.9) / natural_total
+                new_result = []
+                for sn, dt_str in result:
+                    dt = _date_from_str(dt_str)
+                    offset = (dt - created_date).days
+                    new_entry = created_date + timedelta(days=int(offset * scale))
+                    if new_entry > DEMO_TODAY:
+                        new_entry = DEMO_TODAY
+                    new_result.append((sn, new_entry.isoformat()))
+                result = new_result
+
         return result
 
     # ── Helper to create one opportunity + OCRs + tasks ───────────────────
@@ -711,6 +733,100 @@ def generate_salesforce_files(output_dir):
         )
 
         return opp, opp_ocrs, opp_tasks
+
+    # ── Negotiation variety helpers ──────────────────────────────────────
+    # Use a separate RNG so variety decisions don't shift the main _rng
+    # state and cascade into unrelated data changes.
+    _vrng = random.Random(GLOBAL_SEED + 777)
+    _neg_deal_counter = [0]  # mutable counter for cycling through profiles
+
+    def _negotiation_variety():
+        """Return variety parameters for a Negotiation deal.
+
+        Cycles through 5 profiles designed to produce score spread when
+        Pulse evaluates: 50 base +/- activity, threading, roles, close date.
+
+          0 = strong healthy  (~80):  EB+Champ, multi, 3d activity, on-track
+          1 = moderate healthy (~60):  EB, multi, 5d activity, on-track
+          2 = needs attention  (~45):  Champ only, multi, 3d activity, overdue
+          3 = borderline       (~35):  no EB/Champ, multi, 6d activity, on-track
+          4 = at risk          (~0):   single, no EB/Champ, no recent, well overdue
+        """
+        idx = _neg_deal_counter[0]
+        _neg_deal_counter[0] += 1
+        bucket = idx % 5
+
+        if bucket == 0:   # Strong healthy (~80)
+            return {
+                "contact_count": _vrng.choice([3, 4]),
+                "roles": ["Economic Buyer", "Champion",
+                          "Technical Evaluator", "End User"][:_vrng.choice([3, 4])],
+                "close_offset": _vrng.randint(7, 30),
+                "recent_task_offsets": [_vrng.randint(0, 2), _vrng.randint(3, 5)],
+                "stage_entry_days_ago": _vrng.randint(5, 14),
+            }
+        elif bucket == 1:  # Moderate healthy (~60)
+            return {
+                "contact_count": 2,
+                "roles": ["Economic Buyer", "Influencer"],
+                "close_offset": _vrng.randint(3, 15),
+                "recent_task_offsets": [_vrng.randint(4, 6)],
+                "stage_entry_days_ago": _vrng.randint(14, 25),
+            }
+        elif bucket == 2:  # Needs attention (~45)
+            return {
+                "contact_count": _vrng.choice([2, 3]),
+                "roles": ["Champion", "Technical Evaluator", "Influencer"][:_vrng.choice([2, 3])],
+                "close_offset": _vrng.randint(-7, -1),
+                "recent_task_offsets": [_vrng.randint(0, 3)],
+                "stage_entry_days_ago": _vrng.randint(18, 30),
+            }
+        elif bucket == 3:  # Borderline (~35)
+            return {
+                "contact_count": 2,
+                "roles": ["Influencer", "End User"],
+                "close_offset": _vrng.randint(1, 10),
+                "recent_task_offsets": [_vrng.randint(5, 7)],
+                "stage_entry_days_ago": _vrng.randint(20, 35),
+            }
+        else:              # At risk (~0)
+            return {
+                "contact_count": 1,
+                "roles": ["Influencer"],
+                "close_offset": _vrng.randint(-60, -14),
+                "recent_task_offsets": [],
+                "stage_entry_days_ago": _vrng.randint(40, 90),
+            }
+
+    def _inject_recent_tasks(opp_id, ae_id, contact_list, company_name,
+                             use_case, amount, offsets):
+        """Create tasks at specific days before DEMO_TODAY for recent activity."""
+        recent = []
+        for offset in offsets:
+            activity_date = DEMO_TODAY - timedelta(days=offset)
+            tc = _vrng.choice(contact_list) if len(contact_list) > 1 else contact_list[0]
+            tc_name = f"{tc['first_name']} {tc['last_name']}"
+            tc_id = _get_contact_id(tc["email"])
+            if not tc_id:
+                continue
+            subj = _fmt(_vrng.choice(_NEGOTIATION_SUBJECTS),
+                        contact=tc_name, company=company_name,
+                        use_case=use_case, amount=str(amount))
+            desc = _fmt(_vrng.choice(_NEGOTIATION_DESCS),
+                        contact=tc_name, company=company_name,
+                        use_case=use_case, amount=str(amount))
+            recent.append({
+                "Id": ids.next_tsk(),
+                "WhoId": tc_id,
+                "WhatId": opp_id,
+                "Subject": subj,
+                "Status": "Completed",
+                "ActivityDate": activity_date.isoformat(),
+                "Type": _vrng.choice(["Call", "Email", "Meeting"]),
+                "Description": desc,
+                "OwnerId": ae_id,
+            })
+        return recent
 
     # ══════════════════════════════════════════════════════════════════════
     # ARC 8: SDR-to-AE Handoff Opportunities
@@ -1272,6 +1388,7 @@ def generate_salesforce_files(output_dir):
                 created_date = DEMO_TODAY - timedelta(days=days_ago)
                 if created_date < DATA_START:
                     created_date = DATA_START + timedelta(days=_rng.randint(0, 30))
+
                 opp, opp_ocrs, opp_tasks = _create_opp(
                     ae_id, company_idx, amount, created_date, cycle_days,
                     lead_source, use_case,
@@ -1436,6 +1553,69 @@ def generate_salesforce_files(output_dir):
             })
 
         t2_opp_count += 1
+
+    # ══════════════════════════════════════════════════════════════════════
+    # POST-PROCESS: Apply variety to Negotiation deals (uses _vrng only)
+    # ══════════════════════════════════════════════════════════════════════
+
+    # Build reverse lookup: ContactId -> contact dict (lowercase keys for
+    # _inject_recent_tasks compatibility)
+    _contact_by_id = {}
+    for c in contacts:
+        _contact_by_id[c["Id"]] = {
+            "first_name": c["FirstName"],
+            "last_name": c["LastName"],
+            "email": c["Email"],
+        }
+
+    # Build lookup: OpportunityId -> account Name
+    _opp_account_name = {}
+    _acc_name_by_id = {a["Id"]: a["Name"] for a in accounts}
+    for opp in opportunities:
+        _opp_account_name[opp["Id"]] = _acc_name_by_id.get(opp["AccountId"], "")
+
+    # Group OCRs by OpportunityId
+    _ocrs_by_opp = defaultdict(list)
+    for ocr in ocrs:
+        _ocrs_by_opp[ocr["OpportunityId"]].append(ocr)
+
+    # Reset the variety counter so profiles cycle deterministically
+    _neg_deal_counter[0] = 0
+
+    neg_opps = [o for o in opportunities if o["StageName"] == "Negotiation"]
+    for opp in neg_opps:
+        profile = _negotiation_variety()
+        opp_id = opp["Id"]
+
+        # 1. Update CloseDate
+        new_close = DEMO_TODAY + timedelta(days=profile["close_offset"])
+        opp["CloseDate"] = new_close.isoformat()
+
+        # 2. Update OCR roles
+        opp_ocrs = _ocrs_by_opp.get(opp_id, [])
+        for j, ocr in enumerate(opp_ocrs):
+            if j < len(profile["roles"]):
+                ocr["Role"] = profile["roles"][j]
+
+        # 3. Inject recent tasks
+        company_name = _opp_account_name.get(opp_id, "")
+        use_case = opp["Name"].split(" --")[-1] if " --" in opp["Name"] else "Platform"
+        amount = opp.get("Amount", 50000)
+
+        # Build contact_list for task injection from existing OCRs
+        opp_contacts = []
+        for ocr in opp_ocrs:
+            cinfo = _contact_by_id.get(ocr["ContactId"])
+            if cinfo:
+                opp_contacts.append(cinfo)
+        if not opp_contacts:
+            continue
+
+        new_tasks = _inject_recent_tasks(
+            opp_id, opp["OwnerId"], opp_contacts, company_name,
+            use_case, amount, profile["recent_task_offsets"],
+        )
+        tasks.extend(new_tasks)
 
     # ══════════════════════════════════════════════════════════════════════
     # WRITE CSV FILES

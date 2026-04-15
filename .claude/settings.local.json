@@ -9,7 +9,9 @@
       "Bash(ls c:/Dev/beacon-loop/data/synthetic/sf_*.csv)",
       "Bash(python -c ':*)",
       "Bash(python -c \"import json; data=json.load\\(open\\('c:/Dev/beacon-data/output/score_history.json'\\)\\); print\\(json.dumps\\(data[:3], indent=2\\)\\); print\\(f'Total: {len\\(data\\)} records'\\)\")",
-      "Bash(python -m validation.validate)"
+      "Bash(python -m validation.validate)",
+      "Bash(certutil -hashfile output/sf_accounts.csv MD5)",
+      "Bash(python -c ' *)"
     ],
     "additionalDirectories": [
       "c:\\Dev\\beacon-loop\\data\\shared"
